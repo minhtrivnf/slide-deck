@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Environment & secrets (AI_API_KEY, AI_API_URL, MODEL)
+.env
+.env.local
+.env.*.local
+
+# Generated decks & working directories
+.vnf-deck-*/
+report-*-slides*.pptx
+deck copy.pptx
+report.txt
+
+# Input reports (sensitive user data)
+*.docx
+
+# Office lock files
+~$*
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor / OS junk
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

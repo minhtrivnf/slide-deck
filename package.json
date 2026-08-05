@@ -1,0 +1,29 @@
+{
+  "name": "vnf-pptx-toolkit",
+  "version": "0.1.0",
+  "description": "Phase 1 deterministic toolkit for the VNF slide-deck generator agent-loop: units, palette, id allocation, connector geometry, and OOXML integrity validation. Offloads mechanical computation from the LM.",
+  "type": "module",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "npm run build && node dist/src/cli.js",
+    "test": "node --test dist/test/*.test.js",
+    "validate": "node dist/src/cli.js",
+    "pretest": "npm run build"
+  },
+  "dependencies": {
+    "@langchain/core": "^1.2.4",
+    "@langchain/langgraph": "^1.4.9",
+    "@types/adm-zip": "^0.5.8",
+    "@xmldom/xmldom": "^0.9.6",
+    "adm-zip": "^0.6.0",
+    "jszip": "^3.10.1",
+    "mammoth": "^1.12.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.4"
+  }
+}
