@@ -116,14 +116,14 @@ async function summarizeNode(state: AgentState): Promise<Partial<AgentState>> {
 }
 
 async function outlineNode(state: AgentState): Promise<Partial<AgentState>> {
-  const outline = await generateOutline({
+  const result = await generateOutline({
     llm: getLLM(),
     reportText: state.summary ?? state.reportText!,
     deckTitle: state.deckTitle,
     userRequest: state.userRequest,
     maxSlides: state.maxSlides,
   });
-  return { outline };
+  return { outline: result.slides, deckTitle: result.deckTitle };
 }
 
 async function specsNode(state: AgentState): Promise<Partial<AgentState>> {
@@ -151,7 +151,7 @@ async function reviseNode(state: AgentState): Promise<Partial<AgentState>> {
 // ---------------------------------------------------------------------------
 
 async function renderNode(state: AgentState): Promise<Partial<AgentState>> {
-  const renderedSlides = renderSlides(3, state.specs!);
+  const renderedSlides = renderSlides(2, state.specs!);
   return { renderedSlides };
 }
 

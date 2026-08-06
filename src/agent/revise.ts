@@ -8,8 +8,7 @@
  */
 
 import type { LLM, SlideSpec } from "./types.js";
-import { Pattern11PyramidSpecSchema } from "../types.js";
-import { PatternContentSchema } from "./pattern_spec.js";
+import { PATTERN_SCHEMAS } from "./pattern_registry.js";
 
 export async function reviseSpecs(args: {
   llm: LLM;
@@ -70,11 +69,9 @@ function validateSpec(entry: unknown): SlideSpec {
   const { pattern, spec } = entry as { pattern?: unknown; spec?: unknown };
   if (typeof pattern !== "string" || !pattern.startsWith("P")) throw new Error(`Revised spec has invalid pattern: ${String(pattern)}`);
   if (spec === undefined || spec === null) throw new Error(`Revised spec for ${pattern} is missing the "spec" object`);
-  if (pattern === "P11") {
-    Pattern11PyramidSpecSchema.parse(spec);
-  } else {
-    PatternContentSchema.parse(spec);
-  }
+  const schema = PATTERN_SCHEMAS[pattern];
+  if (!schema) throw new Error(`Revised spec for ${pattern} has no registered schema in pattern_registry.ts`);
+  schema.parse(spec);
   return { pattern: pattern as SlideSpec["pattern"], spec } as SlideSpec;
 }
 

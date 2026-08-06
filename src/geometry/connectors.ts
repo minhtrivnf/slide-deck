@@ -99,3 +99,50 @@ export function renderStraightConnector(params: {
 </p:cxnSp>`;
 }
 
+/**
+ * General connector renderer used by the hard-coded pattern files.
+ * Unlike `renderStraightConnector` it supports:
+ *  - `prst` preset geometry ("line" default, "bentConnector3" for L-shaped
+ *    tree/flow elbows);
+ *  - `dash` dashed line style (grid separators, TODAY lines, waterfall
+ *    connectors);
+ *  - optional connection sites — when a site is omitted the connector is
+ *    a free line pinned to absolute endpoints instead of to shapes.
+ */
+export function renderConnector(params: {
+  connectorShapeId: number;
+  name: string;
+  from: Point & { site?: ConnectionSite };
+  to: Point & { site?: ConnectionSite };
+  colorHex: string;
+  weightEmu?: number;
+  dash?: "dash" | "sysDash";
+  prst?: "line" | "bentConnector3";
+}): string {
+  const { connectorShapeId, name, from, to, colorHex, weightEmu = 12700, dash, prst = "line" } = params;
+  const g = connectorGeom(from, to);
+  const flipAttrs = [g.flipH ? `flipH="1"` : "", g.flipV ? `flipV="1"` : ""].filter(Boolean).join(" ");
+  const cxn = from.site && to.site
+    ? `<a:stCxn id="${from.site.shapeId}" idx="${from.site.idx}"/>
+      <a:endCxn id="${to.site.shapeId}" idx="${to.site.idx}"/>`
+    : "";
+  const dashXml = dash ? `<a:prstDash val="${dash}"/>` : "";
+  return `<p:cxnSp>
+  <p:nvCxnSpPr>
+    <p:cNvPr id="${connectorShapeId}" name="${escapeXmlAttr(name)}"/>
+    <p:cNvCxnSpPr>
+      ${cxn}
+    </p:cNvCxnSpPr>
+    <p:nvPr/>
+  </p:nvCxnSpPr>
+  <p:spPr>
+    <a:xfrm${flipAttrs ? " " + flipAttrs : ""}>
+      <a:off x="${g.off.x}" y="${g.off.y}"/>
+      <a:ext cx="${g.ext.cx}" cy="${g.ext.cy}"/>
+    </a:xfrm>
+    <a:prstGeom prst="${prst}"><a:avLst/></a:prstGeom>
+    <a:ln w="${weightEmu}">${dashXml}<a:solidFill><a:srgbClr val="${colorHex}"/></a:solidFill></a:ln>
+  </p:spPr>
+</p:cxnSp>`;
+}
+

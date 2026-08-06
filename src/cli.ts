@@ -84,19 +84,21 @@ function clean(s: string): string {
 function validateDocxPath(raw: string): { ok: true; path: string } | { ok: false; reason: string } {
   const abs = resolve(process.cwd(), clean(raw));
   if (!existsSync(abs)) return { ok: false, reason: `File không tồn tại: ${abs}` };
-  if (extname(abs).toLowerCase() !== ".docx") return { ok: false, reason: "File phải có đuôi .docx" };
+  const ext = extname(abs).toLowerCase();
+  if (ext !== ".docx" && ext !== ".md") return { ok: false, reason: "File phải có đuôi .docx hoặc .md" };
   return { ok: true, path: abs };
 }
 
 /**
  * Conversational intake: the agent (LLM) understands the user's natural
- * message — which .docx and what direction — no rigid syntax required.
+ * message — which file (.docx or .md) and what direction — no rigid syntax required.
  */
 async function chatIntake(llm: LLM): Promise<{ docxPath: string; request: string }> {
   const rl = createInterface({ input, output });
   console.log("=== VNF Slide Deck Generator ===");
   console.log("Nhắn tin tự nhiên, tôi sẽ hiểu bạn muốn dùng file nào và tạo deck gì.\n");
   console.log("  VD:  làm slide từ báo cáo ở D:\\VNF\\report.docx");
+  console.log("  VD:  tạo deck từ file outline.md");
   console.log("  VD:  tạo deck tiếng Việt nhấn mạnh an toàn, dùng file mới nhất\n");
 
   for (;;) {
@@ -111,7 +113,7 @@ async function chatIntake(llm: LLM): Promise<{ docxPath: string; request: string
       rl.close();
       return { docxPath: intake.docxPath, request: intake.userRequest ?? "" };
     }
-    console.log("  [AGENT] Tôi chưa xác định được file .docx. Bạn đưa đường dẫn cụ thể, hoặc đặt file trong thư mục hiện tại rồi nhắn lại.\n");
+    console.log("  [AGENT] Tôi chưa xác định được file. Bạn đưa đường dẫn cụ thể (.docx hoặc .md), hoặc đặt file trong thư mục hiện tại rồi nhắn lại.\n");
   }
 }
 
@@ -228,7 +230,7 @@ function uniqueOutputPath(dir: string, base: string, label: string): string {
 
 function printResult(result: AgentState): void {
   const contentCount = result.renderedSlides?.length ?? 0;
-  console.log(`  [AGENT] Xong! Đã tạo ${contentCount} slide nội dung (tổng ${contentCount + 2} slide).`);
+  console.log(`  [AGENT] Xong! Đã tạo ${contentCount} slide nội dung (tổng ${contentCount + 1} slide).`);
   console.log(`  [AGENT] File: ${result.outputPptxPath}`);
   console.log(`  [AGENT] Gate A validation: ${result.validationOk ? "OK" : "FAIL"}`);
   if (result.validationMessages?.length) {

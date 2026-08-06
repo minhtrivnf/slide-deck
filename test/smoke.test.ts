@@ -5,6 +5,7 @@ import {
   gridSpan,
   assertNoMasterBandCollision,
   resolveActionTitleFit,
+  fitTitle,
   ZONES,
 } from "../src/units.js";
 import { categoricalColor, textColorForSequentialStep, harveyBall, SEMANTIC } from "../src/palette.js";
@@ -38,11 +39,32 @@ test("assertNoMasterBandCollision catches the documented source-line regression"
   assert.doesNotThrow(() => assertNoMasterBandCollision(ZONES.tagline.y, ZONES.tagline.cy));
 });
 
-test("resolveActionTitleFit follows the 80/100 char rule", () => {
-  assert.deepEqual(resolveActionTitleFit("a".repeat(80)), { fontSizePt: 24, ok: true });
-  assert.deepEqual(resolveActionTitleFit("a".repeat(100)), { fontSizePt: 20, ok: true });
-  const tooLong = resolveActionTitleFit("a".repeat(101));
-  assert.equal(tooLong.ok, false);
+test("resolveActionTitleFit sizes by estimated rendered width, not char count", () => {
+  // 50 narrow lowercase chars (em 0.48 each) fit on one line at 24pt.
+  assert.deepEqual(resolveActionTitleFit("a".repeat(50)), { fontSizePt: 24, ok: true });
+  // 60 narrow chars overflow 24pt but fit at 20pt.
+  assert.deepEqual(resolveActionTitleFit("a".repeat(60)), { fontSizePt: 20, ok: true });
+  // Wide chars prove it's a width model, not a char-count rule: only 40 "M"
+  // chars (em 0.85 each) already overflow even at 20pt.
+  const tooWide = resolveActionTitleFit("M".repeat(40));
+  assert.equal(tooWide.ok, false);
+  assert.match((tooWide as { reason: string }).reason, /too long/i);
+});
+
+test("fitTitle trims an over-wide title to one line instead of failing", () => {
+  // A title that already fits is returned untouched.
+  assert.equal(fitTitle("a".repeat(50)), "a".repeat(50));
+  // An over-wide title is cut at a word boundary and marked with an ellipsis,
+  // and the result must fit on one line at 20pt.
+  const long = `${"word ".repeat(30)}overflow`;
+  const fitted = fitTitle(long);
+  assert.ok(fitted.length < long.length, `expected shorter, got "${fitted}"`);
+  assert.ok(fitted.endsWith("…"));
+  assert.equal(resolveActionTitleFit(fitted).ok, true);
+  // Single over-long token is character-trimmed, still one-line and marked.
+  const token = fitTitle("M".repeat(120));
+  assert.equal(resolveActionTitleFit(token).ok, true);
+  assert.ok(token.endsWith("…"));
 });
 
 test("categoricalColor cycles through the 8-color palette", () => {

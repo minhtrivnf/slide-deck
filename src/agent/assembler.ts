@@ -26,7 +26,7 @@ export class DeckAssembler {
   private readonly templatePath: string;
   private readonly workDir: string;
   private initialized = false;
-  private nextSlideNumber = 3;
+  private nextSlideNumber = 2;
 
   constructor(templatePath: string, workDir: string) {
     this.templatePath = templatePath;

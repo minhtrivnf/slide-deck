@@ -96,6 +96,34 @@ export function textColorForSequentialStep(step1to5: number): HexColor {
 }
 
 // ---------------------------------------------------------------------------
+// Diverging ramp (5 steps, green -> red) for risk/heat matrices
+// ---------------------------------------------------------------------------
+
+export const DIVERGING_5: readonly HexColor[] = [
+  "2E7D32", // 1 green - low risk
+  "9CCC65", // 2 light green
+  "FFEB3B", // 3 amber - medium
+  "FF9800", // 4 orange
+  "C00000", // 5 red - high risk
+] as const;
+
+/** Cell fill for a risk/diverging heat cell (step 1 = low risk, 5 = high). */
+export function riskColorForStep(step1to5: number): HexColor {
+  if (step1to5 < 1 || step1to5 > 5) {
+    throw new Error(`riskColorForStep: step must be 1-5, got ${step1to5}`);
+  }
+  return DIVERGING_5[step1to5 - 1];
+}
+
+/** Text color on a diverging cell (rule: white when step >= 4, else navy). */
+export function textColorForDivergingStep(step1to5: number): HexColor {
+  if (step1to5 < 1 || step1to5 > 5) {
+    throw new Error(`textColorForDivergingStep: step must be 1-5, got ${step1to5}`);
+  }
+  return step1to5 >= 4 ? BRAND.white : BRAND.navyDam;
+}
+
+// ---------------------------------------------------------------------------
 // Harvey Ball glyphs (5-step fill scale) and misc trend/check glyphs
 // ---------------------------------------------------------------------------
 

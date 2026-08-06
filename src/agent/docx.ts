@@ -1,11 +1,12 @@
 /**
  * docx.ts
  *
- * Extract plain text/markdown from a .docx file and optionally list embedded
- * media assets. Uses `mammoth` (already available after npm install).
+ * Extract plain text/markdown from a .docx or .md file.
+ * For .docx: Uses `mammoth` to extract text/markdown.
+ * For .md: Reads file directly as markdown.
  */
 
-import { basename } from "node:path";
+import { basename, extname } from "node:path";
 import mammoth from "mammoth";
 
 export interface ExtractedReport {
@@ -15,10 +16,41 @@ export interface ExtractedReport {
 }
 
 /**
+ * Reads a .docx or .md file, returns markdown + plain text.
+ * Detects file type by extension.
+ */
+export async function extractReport(filePath: string): Promise<ExtractedReport> {
+  const fs = await import("node:fs/promises");
+  const ext = extname(filePath).toLowerCase();
+
+  if (ext === ".md") {
+    return extractReportFromMarkdown(filePath);
+  } else if (ext === ".docx") {
+    return extractReportFromDocx(filePath);
+  } else {
+    throw new Error(`Unsupported file format: ${ext}. Supported: .docx, .md`);
+  }
+}
+
+/**
+ * Reads a .md file, returns markdown as-is + plain text.
+ */
+async function extractReportFromMarkdown(mdPath: string): Promise<ExtractedReport> {
+  const fs = await import("node:fs/promises");
+  const markdown = await fs.readFile(mdPath, "utf-8");
+
+  return {
+    markdown,
+    text: markdown.replace(/\n/g, " ").replace(/\s+/g, " ").trim(),
+    mediaFiles: [], // MD files don't embed media like DOCX
+  };
+}
+
+/**
  * Reads a .docx file, returns markdown + plain text, and lists any embedded
  * media files by inspecting the ZIP structure.
  */
-export async function extractReport(docxPath: string): Promise<ExtractedReport> {
+async function extractReportFromDocx(docxPath: string): Promise<ExtractedReport> {
   const fs = await import("node:fs/promises");
   const buffer = await fs.readFile(docxPath);
 
