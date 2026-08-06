@@ -72,30 +72,31 @@ function getFallbackPattern(originalPattern: string): string {
   return FALLBACK_MAP[originalPattern] || "P1"; // Default to P1 if no mapping
 }
 
-export async function generateSpecs(args: { llm: LLM; outline: SlideOutline[] }): Promise<SlideSpec[]> {
+export async function generateSpecs(args: { llm: LLM; outline: SlideOutline[]; userRequest?: string }): Promise<SlideSpec[]> {
+  const { userRequest } = args;
   const specs: SlideSpec[] = [];
   for (const entry of args.outline) {
     if (entry.pattern === "P11") {
-      specs.push(await makePyramidSpec(args.llm, entry));
+      specs.push(await makePyramidSpec(args.llm, entry, userRequest));
     } else {
-      specs.push(await makeContentSpec(args.llm, entry));
+      specs.push(await makeContentSpec(args.llm, entry, userRequest));
     }
   }
   return specs;
 }
 
-async function makePyramidSpec(llm: LLM, entry: SlideOutline): Promise<{ pattern: "P11"; spec: Pattern11PyramidSpec }> {
+async function makePyramidSpec(llm: LLM, entry: SlideOutline, userRequest?: string): Promise<{ pattern: "P11"; spec: Pattern11PyramidSpec }> {
   const spec = await invokeValidated({
     llm,
     entry,
-    buildPrompt: (retry) => pyramidPrompt(entry, retry),
+    buildPrompt: (retry) => pyramidPrompt(entry, retry, userRequest),
     schema: Pattern11PyramidSpecSchema,
     decorate: (parsed) => ({ pattern: "P11", title: entry.title, ...parsed }),
   });
   return { pattern: "P11", spec };
 }
 
-async function makeContentSpec(llm: LLM, entry: SlideOutline): Promise<SlideSpec> {
+async function makeContentSpec(llm: LLM, entry: SlideOutline, userRequest?: string): Promise<SlideSpec> {
   const schema = PATTERN_SCHEMAS[entry.pattern];
   if (!schema) throw new Error(`Pattern ${entry.pattern} has no registered spec schema in pattern_registry.ts`);
   const guidance = guidanceFor(entry.pattern);
@@ -103,13 +104,13 @@ async function makeContentSpec(llm: LLM, entry: SlideOutline): Promise<SlideSpec
   let usedPattern: SlidePattern = entry.pattern;
   let spec: any;
   
-  try {
-    spec = await invokeValidated({
-      llm,
-      entry,
-      buildPrompt: (retry) => contentSpecPrompt(entry, guidance, retry),
-      schema,
-      // Inject chrome metadata from the outline; pattern renderers ignore these keys.
+    try {
+      spec = await invokeValidated({
+        llm,
+        entry,
+        buildPrompt: (retry) => contentSpecPrompt(entry, guidance, retry, userRequest),
+        schema,
+        // Inject chrome metadata from the outline; pattern renderers ignore these keys.
       decorate: (parsed) => ({
         title: entry.title,
         ...(entry.source ? { source: entry.source } : {}),
@@ -258,13 +259,14 @@ async function invokeValidated<T>(args: {
   throw new Error(`unreachable: ${args.entry.pattern} spec retry loop`);
 }
 
-function contentSpecPrompt(entry: SlideOutline, guidance: string, retry: { previous: string; errors: string } | undefined): string {
+function contentSpecPrompt(entry: SlideOutline, guidance: string, retry: { previous: string; errors: string } | undefined, userRequest?: string): string {
    const truncatedNotes = entry.contentNotes.slice(0, 800);
    const base = `You are building a VNF slide for pattern ${entry.pattern}.
 
 Action title: ${entry.title}
 Source: ${entry.source ?? "n/a"}
 Takeaway: ${entry.takeaway ?? "n/a"}
+${userRequest ? `User request (deck-level direction): ${userRequest}\n` : ""}
 
 Content notes (from the report):
 ${truncatedNotes}
@@ -273,7 +275,7 @@ Pattern-specific spec — fill EXACTLY these fields, nothing else:
 ${guidance}
 
 Rules:
-- LANGUAGE RULE (CRITICAL): detect the language of the action title and content notes above, then write EVERY field in that SAME language. NEVER translate. If they are Vietnamese, all text must be Vietnamese. If they are English, all text must be English.
+- LANGUAGE RULE (CRITICAL): detect the language of the action title and content notes above, then write EVERY field in that SAME language. NEVER translate, unless the User request explicitly asks for a different language. If they are Vietnamese, all text must be Vietnamese. If they are English, all text must be English.
 - Never invent numbers or facts not present in the content notes.
 - Keep every string concise (labels < 40 chars, bullets < 120 chars, total under 700 chars).
 - Output JSON only, no markdown fences, no commentary.`;
@@ -282,13 +284,14 @@ Rules:
     : base;
 }
 
-function pyramidPrompt(entry: SlideOutline, retry: { previous: string; errors: string } | undefined): string {
+function pyramidPrompt(entry: SlideOutline, retry: { previous: string; errors: string } | undefined, userRequest?: string): string {
     const truncatedNotes = entry.contentNotes.slice(0, 800);
     const base = `You are building a VNF Pyramid Principle slide (Pattern 11).
 
 Action title: ${entry.title}
 Source: ${entry.source ?? "n/a"}
 Takeaway: ${entry.takeaway ?? "n/a"}
+${userRequest ? `User request (deck-level direction): ${userRequest}\n` : ""}
 
 Content notes:
 ${truncatedNotes}
@@ -306,7 +309,7 @@ Convert this into a strict JSON object matching this Zod schema:
 
 Rules:
 - governingThought should be a clear answer to the action title — keep it concise (max 140 chars).
-- LANGUAGE RULE (CRITICAL): detect the language of the action title and content notes, then write everything in that SAME language. NEVER translate.
+- LANGUAGE RULE (CRITICAL): detect the language of the action title and content notes, then write everything in that SAME language. NEVER translate, unless the User request explicitly asks for a different language.
 - Exactly 3 arguments, mutually exclusive and collectively exhaustive.
 - 2-5 evidence bullets per argument (max 120 chars each) — use the full range so the slide is substantive.
 - Output JSON only, no markdown fences, no commentary.`;

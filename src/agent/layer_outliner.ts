@@ -323,17 +323,29 @@ Return ONLY the title, nothing else.`;
 
   console.log(`[LayerOutliner] All layers generated`);
 
-  // Build final outline: Cover (1) + Agenda (2) + Exec Summary (3-7) + Layers (8+)
+  // Build final outline: Cover (1) + Agenda (2) + Exec Summary (3-7) + Layer Dividers + Layers (8+)
   const agendaSlide = generateAgendaSlide(layerResults, 2);
   
   const allSlides: SlideOutline[] = [agendaSlide, ...execSummary];
   let slideNum = 7;
   
   for (const layer of layerResults) {
+    // Insert a Pattern 7 layer divider slide before each layer's content slides
+    slideNum++;
+    allSlides.push({
+      slideNumber: slideNum,
+      pattern: "P7",
+      title: `LAYER ${layer.layer} — ${layer.layerName.toUpperCase()}`,
+      contentNotes: `Layer divider for layer ${layer.layer}: ${layer.layerName}`,
+      source: undefined,
+      takeaway: layer.thesis,
+    });
+
     for (const slide of layer.slides) {
+      slideNum++;
       allSlides.push({
         ...slide,
-        slideNumber: slideNum++,
+        slideNumber: slideNum,
       });
     }
   }

@@ -173,7 +173,7 @@ async function outlineNode(state: AgentState): Promise<Partial<AgentState>> {
   }
 
 async function specsNode(state: AgentState): Promise<Partial<AgentState>> {
-  const specs = await generateSpecs({ llm: getLLM(), outline: state.outline! });
+  const specs = await generateSpecs({ llm: getLLM(), outline: state.outline!, userRequest: state.userRequest });
   return { specs };
 }
 
