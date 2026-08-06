@@ -22,16 +22,16 @@ import { join, dirname } from "node:path";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { StateGraph, START, END } from "@langchain/langgraph";
-import { setLLM, getLLM } from "./context.js";
+import { setLLM, getLLM, setSummaryLLM } from "./context.js";
 import { extractReport } from "./docx.js";
 import { summarizeReport } from "./summarize.js";
-import { generateOutline } from "./outliner.js";
+import { generateDynamicLayerOutlines } from "./layer_outliner.js";
 import { generateSpecs } from "./specs.js";
 import { reviseSpecs } from "./revise.js";
 import { renderSlides } from "./renderer.js";
 import { DeckAssembler } from "./assembler.js";
 import { exportOutlineToMarkdown } from "./outline_export.js";
-import type { AgentState, BuildDeckOptions, ChatMessage } from "./types.js";
+import type { AgentState, BuildDeckOptions, ChatMessage, LLM } from "./types.js";
 
 const TEMPLATE_PATH = fileURLToPath(new URL("../../assets/vnf_slide_template.pptx", import.meta.url));
 const PROJECT_ROOT = fileURLToPath(new URL("../..", import.meta.url));
@@ -108,37 +108,69 @@ async function extractNode(state: AgentState): Promise<Partial<AgentState>> {
 }
 
 async function summarizeNode(state: AgentState): Promise<Partial<AgentState>> {
-  const summary = await summarizeReport({
-    llm: getLLM(),
-    reportText: state.reportText!,
-    userRequest: state.userRequest,
-  });
-  return { summary };
-}
+    const summary = await summarizeReport({
+      llm: getLLM(),
+      reportText: state.reportText!,
+      userRequest: state.userRequest,
+    });
+    
+    // Debug: log summary to file (create workDir if needed)
+    try {
+      const fs = await import("node:fs/promises");
+      await fs.mkdir(state.workDir, { recursive: true });
+      const debugPath = join(state.workDir, "debug-summary.md");
+      await fs.writeFile(debugPath, summary, "utf-8");
+      console.log(`[Summarize] Brief saved to: ${debugPath}`);
+    } catch (err) {
+      console.warn(`[Summarize] Failed to write debug file: ${(err as any)?.message}`);
+    }
+    
+    return { summary };
+  }
 
 async function outlineNode(state: AgentState): Promise<Partial<AgentState>> {
-   const result = await generateOutline({
-     llm: getLLM(),
-     reportText: state.summary ?? state.reportText!,
-     deckTitle: state.deckTitle,
-     userRequest: state.userRequest,
-     maxSlides: state.maxSlides,
-   });
-   
-   // Export outline to markdown in output/ directory (relative to source document)
-   const sourceDocDir = dirname(state.docxPath);
-   const outlineExportPath = await exportOutlineToMarkdown(
-     result.slides,
-     result.deckTitle,
-     sourceDocDir
-   );
-   
-   return { 
-     outline: result.slides, 
-     deckTitle: result.deckTitle,
-     outlineExportPath
-   };
- }
+    console.log("[Outline] Starting dynamic layer outline generation...");
+    
+    const result = await generateDynamicLayerOutlines(
+      getLLM(),
+      state.summary ?? state.reportText!,
+      state.deckTitle ?? "VNF Report Deck"
+    );
+    
+    // Post-process: Replace any P12 with P6 (SWOT) - P12 renderer doesn't exist
+    const processedSlides = result.slides.map((slide) => {
+      if ((slide.pattern as any) === "P12") {
+        console.warn(`[Outline] Slide ${slide.slideNumber}: P12 not supported, replacing with P6 (SWOT)`);
+        return {
+          ...slide,
+          pattern: "P6" as any,
+          contentNotes: `SWOT analysis: ${slide.contentNotes}`
+        };
+      }
+      return slide;
+    });
+    
+    // Export outline to markdown in output/ directory (relative to source document)
+    const sourceDocDir = dirname(state.docxPath);
+    const outlineExportPath = await exportOutlineToMarkdown(
+      processedSlides,
+      result.deckTitle,
+      sourceDocDir
+    );
+    
+    // Debug: log outline as JSON
+    const fs = await import("node:fs/promises");
+    const debugPath = join(state.workDir, "debug-outline.json");
+    await fs.writeFile(debugPath, JSON.stringify(processedSlides, null, 2), "utf-8");
+    console.log(`[Outline] Outline saved to: ${debugPath}`);
+    console.log(`[Outline] Total slides: ${result.totalSlides} across ${result.layers.length} layers`);
+    
+    return { 
+      outline: processedSlides, 
+      deckTitle: result.deckTitle,
+      outlineExportPath
+    };
+  }
 
 async function specsNode(state: AgentState): Promise<Partial<AgentState>> {
   const specs = await generateSpecs({ llm: getLLM(), outline: state.outline! });
@@ -171,6 +203,12 @@ async function renderNode(state: AgentState): Promise<Partial<AgentState>> {
 
 async function packNode(state: AgentState): Promise<Partial<AgentState>> {
   const outputPath = state.outputPptxPath ?? join(state.workDir, "deck.pptx");
+  
+  // Ensure output directory exists
+  const fs = await import("node:fs/promises");
+  const outputDir = dirname(outputPath);
+  await fs.mkdir(outputDir, { recursive: true });
+  
   const assembler = new DeckAssembler(resolveTemplatePath(), state.workDir);
   await assembler.init();
   await assembler.setCoverTitle(state.deckTitle ?? "VNF Report Deck");
@@ -186,33 +224,34 @@ async function packNode(state: AgentState): Promise<Partial<AgentState>> {
   };
 }
 
-export { setLLM };
+export { setLLM, setSummaryLLM };
 
 /** First build: docx → extract → summarize → outline → specs → render → pack. */
 export async function buildDeck(options: BuildDeckOptions): Promise<AgentState> {
-   setLLM(options.llm);
-   const initialState: any = {
-     docxPath: options.docxPath,
-     workDir: options.workDir,
-     deckTitle: options.deckTitle ?? "VNF Report Deck",
-      maxSlides: options.maxSlides ?? 50,
-     outputPptxPath: options.outputPptxPath,
-     userRequest: options.userRequest,
-     feedback: undefined,
-     messages: [{ role: "user", content: options.userRequest ?? `Tạo slide deck từ báo cáo tại ${options.docxPath}` }],
-     reportText: undefined,
-     mediaFiles: undefined,
-     summary: undefined,
-     error: undefined,
-     outline: undefined,
-     outlineExportPath: undefined,
-     specs: undefined,
-     renderedSlides: undefined,
-     validationOk: undefined,
-     validationMessages: undefined,
-   };
-   return app.invoke(initialState) as Promise<AgentState>;
- }
+    setLLM(options.llm);
+    setSummaryLLM(options.summaryLLM);
+    const initialState: any = {
+      docxPath: options.docxPath,
+      workDir: options.workDir,
+      deckTitle: options.deckTitle ?? "VNF Report Deck",
+       maxSlides: options.maxSlides ?? 50,
+      outputPptxPath: options.outputPptxPath,
+      userRequest: options.userRequest,
+      feedback: undefined,
+      messages: [{ role: "user", content: options.userRequest ?? `Tạo slide deck từ báo cáo tại ${options.docxPath}` }],
+      reportText: undefined,
+      mediaFiles: undefined,
+      summary: undefined,
+      error: undefined,
+      outline: undefined,
+      outlineExportPath: undefined,
+      specs: undefined,
+      renderedSlides: undefined,
+      validationOk: undefined,
+      validationMessages: undefined,
+    };
+    return app.invoke(initialState) as Promise<AgentState>;
+  }
 
 /**
  * Feedback turn: reuse the previous state, patch the specs via the LLM, and

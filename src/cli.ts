@@ -37,44 +37,56 @@ interface EnvConfig {
   apiUrl: string;
   apiKey: string;
   model: string;
+  summaryUrl?: string;
+  summaryKey?: string;
+  summaryModel?: string;
 }
 
 function findEnvFile(): string {
-  const candidates = [
-    join(PROJECT_ROOT, ".env"),
-    join(process.cwd(), ".env"),
-    join(dirname(process.argv[1]), "..", "..", ".env"),
-  ];
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) return candidate;
-  }
-  throw new Error(
-    "Cannot find .env. Create one at the project root with AI_API_URL, AI_API_KEY, MODEL."
-  );
-}
+   const candidates = [
+     join(PROJECT_ROOT, ".env"),
+     join(process.cwd(), ".env"),
+     join(dirname(process.argv[1]), "..", "..", ".env"),
+   ];
+   for (const candidate of candidates) {
+     if (existsSync(candidate)) return candidate;
+   }
+   throw new Error(
+     "Cannot find .env. Create one at the project root with AI_API_URL, AI_API_KEY, MODEL."
+   );
+ }
 
 function loadEnv(): EnvConfig {
-  const envFile = findEnvFile();
-  const content = readFileSync(envFile, "utf-8");
-  const vars: Record<string, string> = {};
-  for (const line of content.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eq = trimmed.indexOf("=");
-    if (eq === -1) continue;
-    const key = trimmed.slice(0, eq).trim();
-    let value = trimmed.slice(eq + 1).trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-      value = value.slice(1, -1);
+    const envFile = findEnvFile();
+    const content = readFileSync(envFile, "utf-8");
+    const vars: Record<string, string> = {};
+    for (const line of content.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eq = trimmed.indexOf("=");
+      if (eq === -1) continue;
+      const key = trimmed.slice(0, eq).trim();
+      let value = trimmed.slice(eq + 1).trim();
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      vars[key] = value;
     }
-    vars[key] = value;
+    
+    const missing = ["AI_API_URL", "AI_API_KEY", "MODEL"].filter((k) => !vars[k]);
+    if (missing.length > 0) {
+      throw new Error(`Missing required env vars in ${envFile}: ${missing.join(", ")}`);
+    }
+    
+    return { 
+      apiUrl: vars.AI_API_URL,
+      apiKey: vars.AI_API_KEY,
+      model: vars.MODEL,
+      summaryUrl: vars.AI_SUMMARY_URL,
+      summaryKey: vars.AI_SUMMARY_KEY,
+      summaryModel: vars.MODEL_SUMMARY,
+    };
   }
-  const missing = ["AI_API_URL", "AI_API_KEY", "MODEL"].filter((k) => !vars[k]);
-  if (missing.length > 0) {
-    throw new Error(`Missing required env vars in ${envFile}: ${missing.join(", ")}`);
-  }
-  return { apiUrl: vars.AI_API_URL, apiKey: vars.AI_API_KEY, model: vars.MODEL };
-}
 
 /** Strips UTF-8 BOM and surrounding whitespace. */
 function clean(s: string): string {
@@ -140,7 +152,25 @@ async function main(): Promise<void> {
   }
 
   const isTTY = Boolean(input.isTTY);
-  const llm = createHttpLLM(env);
+  
+  // Create main LLM (for outline, specs, revise)
+  const llm = createHttpLLM({
+    apiUrl: env.apiUrl,
+    apiKey: env.apiKey,
+    model: env.model,
+  });
+  
+  // Create summary LLM if separate config exists
+  let summaryLLM: LLM | undefined;
+  if (env.summaryUrl && env.summaryKey && env.summaryModel) {
+    summaryLLM = createHttpLLM({
+      apiUrl: env.summaryUrl,
+      apiKey: env.summaryKey,
+      model: env.summaryModel,
+    });
+    console.log(`  [AGENT] Summary LLM: ${env.summaryModel}`);
+  }
+  
   const argvPath = process.argv[2];
 
   let docxPath: string;
@@ -164,14 +194,14 @@ async function main(): Promise<void> {
    const runId = stamp();
    const workDir = join(dirname(docxPath), `.vnf-deck-${base}-${runId}`);
    
-   // Output PPTX to docs/pptx folder in project root
-   const projectRoot = dirname(dirname(docxPath)); // Go up to find project root or use docs folder
-   const docsDir = join(projectRoot, "docs", "pptx");
-   const outputPptxPath = uniqueOutputPath(docsDir, base, "slides");
+   // Output PPTX to output/pptx folder in project root
+   const projectRoot = dirname(dirname(docxPath)); // Go up to find project root
+   const outputDir = join(projectRoot, "output", "pptx");
+   const outputPptxPath = uniqueOutputPath(outputDir, base, "slides");
 
   console.log(`  [AGENT] Đang tạo deck từ: ${docxPath}`);
   if (request) console.log(`  [AGENT] Yêu cầu: ${request}`);
-  console.log(`  [AGENT] LLM: ${env.model}`);
+  console.log(`  [AGENT] Main LLM: ${env.model}`);
   console.log(`  [AGENT] Đang đọc → tóm tắt → outline → dựng slide...`);
   console.log(`  [AGENT] Deck sẽ lưu tại: ${outputPptxPath}\n`);
 
@@ -182,6 +212,7 @@ async function main(): Promise<void> {
     outputPptxPath,
     userRequest: request,
     llm,
+    summaryLLM,
   });
 
   if (current.error) {

@@ -24,8 +24,8 @@ const ROW_CY = 600000;
 const BADGE_OFFSET = { x: 80000, y: 84000, cx: 432000, cy: 432000 };
 const TEXT_X_OFFSET = 620000;
 const TEXT_CX = 3100000;
-const ROW_FILL_ALT = ["FFFFFF", "F5F5FF"];
-const ROW_FILL_HIGHLIGHT = "D6F1FC";
+const ROW_FILL_ALT = ["FFFFFF", "FFFFFF"]; // No alternating background - clean white
+const ROW_FILL_HIGHLIGHT = "F5F5FF"; // Very subtle highlight for key items
 
 export interface RenderedAgenda {
   bodyXml: string;
@@ -108,7 +108,7 @@ export function renderPattern22Agenda(rawSpec: unknown, slideNumber: number): Re
       })
     );
 
-    const bold = item.highlighted ? 1 : 0;
+    const bold = 0; // Always normal weight, not bold
     const pageRun = item.page !== undefined
       ? `<a:r><a:rPr lang="en-US" sz="1100" i="1" dirty="0"><a:solidFill><a:srgbClr val="${BRAND.gray}"/></a:solidFill><a:latin typeface="Calibri"/></a:rPr><a:t>     p. ${escapeXmlText(String(item.page))}</a:t></a:r>`
       : "";

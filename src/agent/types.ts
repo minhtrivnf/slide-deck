@@ -12,7 +12,7 @@ import type { Pattern11PyramidSpec } from "../types.js";
 export type SlidePattern =
   | "P11" // Pyramid Principle (implemented)
   | "P1" | "P2" | "P3" | "P4" | "P5" | "P6" | "P7" | "P8" | "P9"
-  | "P10" | "P12" | "P13" | "P14" | "P15" | "P16" | "P17" | "P18"
+  | "P10" | "P13" | "P14" | "P15" | "P16" | "P17" | "P18"
   | "P19" | "P20" | "P21" | "P22" | "P23" | "P24";
 
 /** One slide in the agent-generated outline. */
@@ -85,6 +85,8 @@ export interface AgentState {
   validationOk?: boolean;
   /** Gate A validation messages. */
   validationMessages?: string[];
+  /** Whether Map-Reduce summarization was used (for large reports). */
+  useMapReduce?: boolean;
 }
 
 /** Minimal LLM contract expected by the agent. */
@@ -136,6 +138,8 @@ export interface BuildDeckOptions {
   workDir: string;
   deckTitle?: string;
   llm: LLM;
+  /** Optional summary LLM for the sub-agent (cheaper model). Falls back to main LLM if not set. */
+  summaryLLM?: LLM;
   /** Free-form user request that guides summarization + outlining. */
   userRequest?: string;
   /** Absolute path for the final .pptx. Defaults to <workDir>/deck.pptx. */

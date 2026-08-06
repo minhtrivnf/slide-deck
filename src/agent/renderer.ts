@@ -24,7 +24,7 @@ import { renderPattern8Quote } from "../patterns/p8_quote.js";
 import { renderPattern9BarChart } from "../patterns/p9_bar_chart.js";
 import { renderPattern10ExecSummary } from "../patterns/p10_exec_summary.js";
 import { renderPattern11Pyramid } from "../patterns/p11_pyramid.js";
-import { renderPattern12Waterfall } from "../patterns/p12_waterfall.js";
+// import { renderPattern12Waterfall } from "../patterns/p12_waterfall.js";
 import { renderPattern13BcgMatrix } from "../patterns/p13_bcg_matrix.js";
 import { renderPattern14Harvey } from "../patterns/p14_harvey.js";
 import { renderPattern15HeatMap } from "../patterns/p15_heatmap.js";
@@ -63,7 +63,7 @@ const PATTERN_RENDERERS: Record<SlidePattern, PatternRenderer> = {
   P9: renderPattern9BarChart,
   P10: renderPattern10ExecSummary,
   P11: renderPattern11Pyramid,
-  P12: renderPattern12Waterfall,
+  // P12: renderPattern12Waterfall, // Removed: use P6, P15, P16 instead
   P13: renderPattern13BcgMatrix,
   P14: renderPattern14Harvey,
   P15: renderPattern15HeatMap,
@@ -85,15 +85,52 @@ const SELF_CONTAINED: ReadonlySet<string> = new Set(["P7", "P10", "P11", "P22"])
  * renderer can allocate (content starts at (slide-1)*100+1). */
 const CHROME_SLIDE_OFFSET = 100000;
 
+function renderWithFallback(
+  slideNumber: number,
+  pattern: SlidePattern,
+  rawSpec: any,
+  renderer: PatternRenderer
+): { bodyXml: string; shapeIds: unknown; usedFallback?: boolean } {
+  try {
+    return { bodyXml: renderer(rawSpec, slideNumber).bodyXml, shapeIds: renderer(rawSpec, slideNumber).shapeIds };
+  } catch (err) {
+    console.warn(
+      `[Renderer] Pattern ${pattern} slide ${slideNumber} failed: ${(err as Error).message}. ` +
+      `Using fallback P3 (Data Table).`
+    );
+    
+    // Fallback to P3 data table with title + content notes
+    const fallbackSpec = {
+      pattern: "P3",
+      title: rawSpec?.title || rawSpec?.actionTitle || "Slide content",
+      source: rawSpec?.source,
+      takeaway: rawSpec?.takeaway,
+      headers: ["Item", "Details"],
+      rows: [
+        ["Title", String(rawSpec?.title || rawSpec?.actionTitle || "N/A")],
+        ["Key Finding", String(rawSpec?.contentNotes || rawSpec?.takeaway || "See content")]
+      ],
+      totalRow: false
+    };
+    
+    return {
+      bodyXml: renderPattern3DataTable(fallbackSpec, slideNumber).bodyXml,
+      shapeIds: renderPattern3DataTable(fallbackSpec, slideNumber).shapeIds,
+      usedFallback: true
+    };
+  }
+}
+
 export function renderSlides(slideNumberBase: number, specs: SlideSpec[]): RenderedSlide[] {
   return specs.map((slideSpec, i) => {
     const slideNumber = slideNumberBase + i;
     const renderer = PATTERN_RENDERERS[slideSpec.pattern];
     if (!renderer) {
-      throw new Error(`renderSlides: no hard-coded renderer for pattern ${slideSpec.pattern}`);
+      console.warn(`[Renderer] No renderer for ${slideSpec.pattern}, using P3 fallback`);
+      return renderChromeSlide(slideNumber, "P3", slideSpec.spec, (s, n) => renderPattern3DataTable(s, n));
     }
     if (SELF_CONTAINED.has(slideSpec.pattern)) {
-      const rendered = renderer(slideSpec.spec, slideNumber);
+      const rendered = renderWithFallback(slideNumber, slideSpec.pattern, slideSpec.spec, renderer);
       return {
         slideNumber,
         pattern: slideSpec.pattern,
@@ -113,7 +150,7 @@ function renderChromeSlide(
   rawSpec: unknown,
   renderer: PatternRenderer
 ): RenderedSlide {
-  const spec = rawSpec as { title?: string; source?: string; takeaway?: string };
+  const spec = rawSpec as { title?: string; source?: string; takeaway?: string; actionTitle?: string };
   const pieces: string[] = [];
   const usedIds: number[] = [];
 
@@ -123,7 +160,7 @@ function renderChromeSlide(
 
   // Never render a wrapping title: deterministically trim any over-long title
   // to one line before sizing it (covers revision-produced specs too).
-  const title = fitTitle(spec.title ?? "");
+  const title = fitTitle(spec.title || spec.actionTitle || "");
   const titleFit = resolveActionTitleFit(title);
   const titleFont = titleFit.ok ? titleFit.fontSizePt : 20;
   const titleId = chromeIds.alloc();
@@ -142,7 +179,7 @@ function renderChromeSlide(
     })
   );
 
-  const content = renderer(rawSpec, slideNumber);
+  const content = renderWithFallback(slideNumber, pattern, rawSpec, renderer);
   pieces.push(content.bodyXml);
   usedIds.push(...flattenShapeIds(content.shapeIds));
 
