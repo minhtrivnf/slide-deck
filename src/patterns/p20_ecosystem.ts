@@ -100,23 +100,23 @@ function nodeXml(params: {
 }
 
 export function renderPattern20Ecosystem(rawSpec: unknown, slideNumber: number): RenderedEcosystem {
-  const spec: Pattern20EcosystemSpec = Pattern20EcosystemSpecSchema.parse(rawSpec);
+   const spec: Pattern20EcosystemSpec = Pattern20EcosystemSpecSchema.parse(rawSpec);
 
-  // Top-corner quadrant labels share the canvas band used by the NE/NW
-  // outer nodes — fail fast with a readable message instead of overlaying.
-  const quadrant = spec.quadrantLabels;
-  if (quadrant) {
-    for (const [key, conflictSlots] of Object.entries(QUAD_LABEL_CONFLICTS)) {
-      const label = (quadrant as Record<string, string | undefined>)[key];
-      if (!label) continue;
-      const used = conflictSlots.filter((slot) => slot < spec.outer.length);
-      if (used.length) {
-        throw new Error(
-          `P20: quadrantLabels.${key} ("${label}") overlaps the occupied outer slot(s) ${used.join(", ")} — drop the label or leave the corner slot(s) empty`
-        );
-      }
-    }
-  }
+   // Top-corner quadrant labels share the canvas band used by the NE/NW
+   // outer nodes — automatically hide conflicting outer slots to prevent overlap.
+   const quadrant = spec.quadrantLabels;
+   const hiddenOuterSlots = new Set<number>();
+   if (quadrant) {
+     for (const [key, conflictSlots] of Object.entries(QUAD_LABEL_CONFLICTS)) {
+       const label = (quadrant as Record<string, string | undefined>)[key];
+       if (!label) continue;
+       conflictSlots.forEach((slot) => {
+         if (slot < spec.outer.length) {
+           hiddenOuterSlots.add(slot);
+         }
+       });
+     }
+   }
 
   const ids = new ShapeIdAllocator(slideNumber);
   const allIds: number[] = [];
@@ -140,10 +140,14 @@ export function renderPattern20Ecosystem(rawSpec: unknown, slideNumber: number):
     );
   };
 
-  spec.inner.forEach((_, i) => {
-    link(INNER_SLOTS[i].x + INNER_CX / 2, INNER_SLOTS[i].y + INNER_CY / 2, `LinkIn${i + 1}`);
-  });
-  spec.outer.forEach((_, i) => link(OUTER_CENTERS[i].x, OUTER_CENTERS[i].y, `LinkOut${i + 1}`));
+   spec.inner.forEach((_, i) => {
+     link(INNER_SLOTS[i].x + INNER_CX / 2, INNER_SLOTS[i].y + INNER_CY / 2, `LinkIn${i + 1}`);
+   });
+   spec.outer.forEach((_, i) => {
+     // Skip connectors for outer slots that are hidden due to quadrant label conflicts
+     if (hiddenOuterSlots.has(i)) return;
+     link(OUTER_CENTERS[i].x, OUTER_CENTERS[i].y, `LinkOut${i + 1}`);
+   });
 
   // --- nodes ON TOP ---
   spec.inner.forEach((text, i) => {
@@ -161,22 +165,25 @@ export function renderPattern20Ecosystem(rawSpec: unknown, slideNumber: number):
       })
     );
   });
-  spec.outer.forEach((text, i) => {
-    const id = ids.alloc();
-    allIds.push(id);
-    nodes.push(
-      nodeXml({
-        shapeId: id,
-        name: `EcoOuter${i + 1}`,
-        rect: { x: OUTER_CENTERS[i].x - OUTER_CX / 2, y: OUTER_CENTERS[i].y - OUTER_CY / 2, cx: OUTER_CX, cy: OUTER_CY },
-        text,
-        fillHex: BRAND.white,
-        borderHex: BRAND.navyDam,
-        textColorHex: BRAND.navyDam,
-        fontSizePt: 10,
-      })
-    );
-  });
+   spec.outer.forEach((text, i) => {
+     // Skip rendering outer slots that conflict with quadrant labels
+     if (hiddenOuterSlots.has(i)) return;
+     
+     const id = ids.alloc();
+     allIds.push(id);
+     nodes.push(
+       nodeXml({
+         shapeId: id,
+         name: `EcoOuter${i + 1}`,
+         rect: { x: OUTER_CENTERS[i].x - OUTER_CX / 2, y: OUTER_CENTERS[i].y - OUTER_CY / 2, cx: OUTER_CX, cy: OUTER_CY },
+         text,
+         fillHex: BRAND.white,
+         borderHex: BRAND.navyDam,
+         textColorHex: BRAND.navyDam,
+         fontSizePt: 10,
+       })
+     );
+   });
 
   // Center on top of everything
   const centerId = ids.alloc();

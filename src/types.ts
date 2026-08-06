@@ -223,7 +223,7 @@ export const Pattern12WaterfallSpecSchema = z.object({
     .array(
       z.object({
         label: z.string().min(1).max(40),
-        delta: z.coerce.number().nonnegative(),
+        delta: z.coerce.number(), // Allow both positive and negative deltas for waterfall
       })
     )
     .min(1)

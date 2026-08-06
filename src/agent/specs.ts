@@ -122,20 +122,21 @@ async function invokeValidated<T>(args: {
 }
 
 function contentSpecPrompt(entry: SlideOutline, guidance: string, retry: { previous: string; errors: string } | undefined): string {
-  const base = `You are building a VNF slide for pattern ${entry.pattern}.
+   const truncatedNotes = entry.contentNotes.slice(0, 800);
+   const base = `You are building a VNF slide for pattern ${entry.pattern}.
 
 Action title: ${entry.title}
 Source: ${entry.source ?? "n/a"}
 Takeaway: ${entry.takeaway ?? "n/a"}
 
 Content notes (from the report):
-${entry.contentNotes}
+${truncatedNotes}
 
 Pattern-specific spec — fill EXACTLY these fields, nothing else:
 ${guidance}
 
 Rules:
-- LANGUAGE: write every field in the SAME LANGUAGE as the action title and content notes. If they are Vietnamese, all text must be Vietnamese (keep numbers, units and proper nouns as-is).
+- LANGUAGE RULE (CRITICAL): detect the language of the action title and content notes above, then write EVERY field in that SAME language. NEVER translate. If they are Vietnamese, all text must be Vietnamese. If they are English, all text must be English.
 - Never invent numbers or facts not present in the content notes.
 - Keep every string concise (labels < 40 chars, bullets < 120 chars, total under 700 chars).
 - Output JSON only, no markdown fences, no commentary.`;
@@ -145,29 +146,30 @@ Rules:
 }
 
 function pyramidPrompt(entry: SlideOutline, retry: { previous: string; errors: string } | undefined): string {
-  const base = `You are building a VNF Pyramid Principle slide (Pattern 11).
+   const truncatedNotes = entry.contentNotes.slice(0, 800);
+   const base = `You are building a VNF Pyramid Principle slide (Pattern 11).
 
 Action title: ${entry.title}
 Source: ${entry.source ?? "n/a"}
 Takeaway: ${entry.takeaway ?? "n/a"}
 
 Content notes:
-${entry.contentNotes}
+${truncatedNotes}
 
 Convert this into a strict JSON object matching this Zod schema:
 {
-  "pattern": "P11",
-  "governingThought": "one sentence answer-first (max 160 chars)",
-  "arguments": [
-    { "label": "short argument label (max 60 chars)", "evidence": ["bullet 1 (max 120 chars)", "bullet 2", "bullet 3", "bullet 4"] },
-    { "label": "...", "evidence": ["..."] },
-    { "label": "...", "evidence": ["..."] }
-  ]
+   "pattern": "P11",
+   "governingThought": "one sentence answer-first (max 160 chars)",
+   "arguments": [
+     { "label": "short argument label (max 60 chars)", "evidence": ["bullet 1 (max 120 chars)", "bullet 2", "bullet 3", "bullet 4"] },
+     { "label": "...", "evidence": ["..."] },
+     { "label": "...", "evidence": ["..."] }
+   ]
 }
 
 Rules:
 - governingThought should be a clear answer to the action title.
-- LANGUAGE: write everything in the SAME LANGUAGE as the action title and content notes (Vietnamese if they are Vietnamese).
+- LANGUAGE RULE (CRITICAL): detect the language of the action title and content notes, then write everything in that SAME language. NEVER translate.
 - Exactly 3 arguments, mutually exclusive and collectively exhaustive.
 - 2-5 evidence bullets per argument (max 120 chars each) — use the full range so the slide is substantive.
 - Output JSON only, no markdown fences, no commentary.`;

@@ -159,11 +159,15 @@ async function main(): Promise<void> {
     request = fromInput.request;
   }
 
-  const base = basename(docxPath, ".docx");
-  const deckTitle = request ? request.slice(0, 120) : base;
-  const runId = stamp();
-  const workDir = join(dirname(docxPath), `.vnf-deck-${base}-${runId}`);
-  const outputPptxPath = uniqueOutputPath(dirname(docxPath), base, "slides");
+   const base = basename(docxPath, ".docx");
+   const deckTitle = request ? request.slice(0, 120) : base;
+   const runId = stamp();
+   const workDir = join(dirname(docxPath), `.vnf-deck-${base}-${runId}`);
+   
+   // Output PPTX to docs/pptx folder in project root
+   const projectRoot = dirname(dirname(docxPath)); // Go up to find project root or use docs folder
+   const docsDir = join(projectRoot, "docs", "pptx");
+   const outputPptxPath = uniqueOutputPath(docsDir, base, "slides");
 
   console.log(`  [AGENT] Đang tạo deck từ: ${docxPath}`);
   if (request) console.log(`  [AGENT] Yêu cầu: ${request}`);

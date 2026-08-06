@@ -49,7 +49,7 @@ export async function generateOutline(args: {
   /** Hard cap on slides; the outline count is decided from content, up to this. Defaults to 20. */
   maxSlides?: number;
 }): Promise<{ slides: SlideOutline[]; deckTitle: string }> {
-  const { llm, reportText, deckTitle = "VNF Report Deck", userRequest, maxSlides = 20 } = args;
+  const { llm, reportText, deckTitle = "VNF Report Deck", userRequest, maxSlides = 50 } = args;
   const prompt = buildOutlinePrompt(reportText, deckTitle, userRequest, maxSlides);
   const raw = await llm.invoke(prompt);
 
@@ -139,7 +139,7 @@ function stripCodeFences(text: string): string {
 }
 
 function buildOutlinePrompt(reportText: string, deckTitle: string, userRequest: string | undefined, maxSlides: number): string {
-  const truncated = reportText.slice(0, 12000);
+   const truncated = reportText.slice(0, 50000);
   return `You are a McKinsey/BCG-grade presentation consultant. Turn the following content brief into a VNF-branded slide deck outline.
 
 INITIAL DECK TITLE (may refine): ${deckTitle}
@@ -156,12 +156,19 @@ ${PATTERN_DESCRIPTIONS}
 
 Rules:
 - **Maximize slide count AND richness**: aim for ${Math.max(maxSlides - 2, 8)}-${maxSlides} content slides. Each slide must be **substantive and full of detail**, not sparse.
+  - CRITICAL: Create slides that are SPECIFIC and DATA-RICH, not vague summaries
   - Do NOT create empty/light slides — every slide must have meaningful content
   - A metric slide (P1/P2) needs all 3 stats + descriptive labels + insight bullets
   - A chart slide (P9/P12) needs multiple data series or bars (not just 1-2)
   - A narrative slide (P11/P10) needs full argument depth, not vague placeholders
   - Break large topics into multiple rich slides (e.g., "Market analysis" could be 3 slides: market size + growth trend + competitive landscape, each with full detail)
-- LANGUAGE: write every title, source line, takeaway and contentNotes in the SAME LANGUAGE as the source report. If the report is Vietnamese, everything must be Vietnamese (keep numbers and proper nouns as-is).
+  - Extract EVERY key finding, metric, quote, and insight from the brief — don't leave details on the table
+  - Aim for 15-20 slides minimum when the brief contains substantial content
+- LANGUAGE RULE (CRITICAL):
+  - FIRST: detect the dominant language of the CONTENT BRIEF above (Vietnamese, English, etc.)
+  - SECOND: write every title, source line, takeaway, and contentNotes in that SAME language.
+  - NEVER translate. If the brief is Vietnamese, everything must be Vietnamese. If the brief is English, everything must be English.
+  - Keep numbers, units, proper nouns and quoted terms as-is.
 - Slide numbers start at 2 (slide 1 is the cover).
 - Each slide must use ONE pattern.
 - Action titles must be a complete sentence stating the conclusion (max 100 chars, ideally ≤80). NEVER empty — always propose a short, meaningful, specific slide title even if the source text is vague.

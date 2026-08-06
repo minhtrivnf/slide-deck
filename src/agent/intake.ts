@@ -18,32 +18,35 @@ export interface IntakeResult {
   needDocx?: boolean;
 }
 
-/** Recursively finds .docx files under `roots`, most recently modified first. */
+/** Recursively finds .docx and .md files under `roots`, most recently modified first. */
 export function scanDocx(roots: string[], limit = 15): string[] {
-  const found: Array<{ p: string; m: number }> = [];
-  const walk = (dir: string, depth: number): void => {
-    if (depth > 4) return;
-    let entries;
-    try {
-      entries = readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      const full = join(dir, entry.name);
-      if (entry.isDirectory()) {
-        walk(full, depth + 1);
-      } else if (extname(entry.name).toLowerCase() === ".docx") {
-        try {
-          found.push({ p: full, m: statSync(full).mtimeMs });
-        } catch {
-          /* ignore unreadable */
-        }
-      }
-    }
-  };
-  for (const root of roots) walk(resolve(root), 0);
-  return found.sort((a, b) => b.m - a.m).slice(0, limit).map((f) => f.p);
+   const found: Array<{ p: string; m: number }> = [];
+   const walk = (dir: string, depth: number): void => {
+     if (depth > 4) return;
+     let entries;
+     try {
+       entries = readdirSync(dir, { withFileTypes: true });
+     } catch {
+       return;
+     }
+     for (const entry of entries) {
+       const full = join(dir, entry.name);
+       if (entry.isDirectory()) {
+         walk(full, depth + 1);
+       } else {
+         const ext = extname(entry.name).toLowerCase();
+         if (ext === ".docx" || ext === ".md") {
+           try {
+             found.push({ p: full, m: statSync(full).mtimeMs });
+           } catch {
+             /* ignore unreadable */
+           }
+         }
+       }
+     }
+   };
+   for (const root of roots) walk(resolve(root), 0);
+   return found.sort((a, b) => b.m - a.m).slice(0, limit).map((f) => f.p);
 }
 
 /**
@@ -57,23 +60,24 @@ export async function understandIntent(llm: LLM, args: { userMessage: string; av
     ? availableDocs.map((p, i) => `${i + 1}) ${p}`).join("\n")
     : "(không tìm thấy file nào — người dùng phải đưa đường dẫn cụ thể)";
 
-  const prompt = `You are the intake engine of a VNF slide-deck generator. A user just sent a message. Understand it like a human would: figure out WHICH .docx file they mean and WHAT deck they want.
+   const prompt = `You are the intake engine of a VNF slide-deck generator. A user just sent a message. Understand it like a human would: figure out WHICH file (.docx or .md) they mean and WHAT deck they want.
 
 USER MESSAGE:
 "${userMessage}"
 
-.doc FILES FOUND ON DISK (absolute paths, newest first):
+FILES FOUND ON DISK (.docx and .md, absolute paths, newest first):
 ${fileList}
 
 Reply with JSON only (no markdown fences, no explanation):
 {
-  "docxPath": "<absolute path of the chosen file, or '' if unknown>",
-  "userRequest": "<short deck direction (language, emphasis, audience...), or '' if none>",
-  "message": "<short Vietnamese confirmation of what you understood>"
+   "docxPath": "<absolute path of the chosen file, or '' if unknown>",
+   "userRequest": "<short deck direction (language, emphasis, audience...), or '' if none>",
+   "message": "<short Vietnamese confirmation of what you understood>"
 }
 
 Rules:
 - If the message names a file or says "file này / file mới nhất / báo cáo ...", pick the best match from the list (default to the newest).
+- Support both .docx and .md file extensions - they are processed the same way.
 - If the message contains an explicit path, return that path as-is even if not in the list.
 - If you cannot determine any file, docxPath = "".
 - userRequest is the deck direction only, e.g. "Deck tiếng Việt, nhấn mạnh an toàn lao động". Leave "" if the user just asked to make slides.`;

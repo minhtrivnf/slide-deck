@@ -35,7 +35,7 @@ ${feedback}
 Rules:
 - Edit the relevant slide spec(s) to address the feedback. Reference slides by their pattern and content.
 - When the feedback asks to enrich/add content, expand bullets, evidence and lists with REAL facts and numbers from the REPORT CONTENT BRIEF — never invent data.
-- LANGUAGE: keep all text in the same language as the existing slides (Vietnamese if the deck is Vietnamese).
+- LANGUAGE RULE (CRITICAL): detect the language of the existing slides above, then keep all text in that SAME language. NEVER translate.
 - Keep the same slide count and patterns UNLESS the feedback explicitly asks to add or remove a slide.
 - Preserve every field the renderer needs. A P11 spec must keep pattern "P11", governingThought, and exactly 3 arguments (each with 2-5 evidence bullets, max 120 chars each).
 - Keep titles within 100 characters.

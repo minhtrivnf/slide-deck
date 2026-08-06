@@ -11,13 +11,13 @@
 import type { LLM } from "./types.js";
 
 export async function summarizeReport(args: {
-  llm: LLM;
-  reportText: string;
-  userRequest?: string;
-  /** Hard cap on the report slice passed to the summarizer. */
-  maxChars?: number;
-}): Promise<string> {
-  const { llm, reportText, userRequest, maxChars = 60000 } = args;
+   llm: LLM;
+   reportText: string;
+   userRequest?: string;
+   /** Hard cap on the report slice passed to the summarizer. */
+   maxChars?: number;
+ }): Promise<string> {
+   const { llm, reportText, userRequest, maxChars = 120000 } = args;
   const truncated = reportText.slice(0, maxChars);
   const prompt = `You are a McKinsey/BCG-grade presentation consultant. Distill the following report into a dense, structured brief that a slide-outliner will use to build a VNF-branded deck.
 
@@ -38,6 +38,10 @@ Produce a Markdown brief with these sections:
 
 Be dense and factual. Do not invent data. Never soften a number you cannot source.
 
-LANGUAGE: Write the entire brief in the SAME LANGUAGE as the source report. If the report is Vietnamese, the brief must be fully in Vietnamese (headings, bullets, action titles); keep numbers, units and quoted terms exactly as in the report.`;
+LANGUAGE RULE (CRITICAL):
+- FIRST: detect the dominant language of the source report above (Vietnamese, English, etc.)
+- SECOND: write the ENTIRE brief — every heading, bullet, action title, and section — in that SAME language.
+- Keep numbers, units, proper nouns and quoted terms exactly as they appear in the report.
+- NEVER translate the content. If the report is Vietnamese, the brief must be 100% Vietnamese. If the report is English, the brief must be 100% English.`;
   return llm.invoke(prompt);
 }

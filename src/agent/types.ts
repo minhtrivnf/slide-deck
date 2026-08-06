@@ -73,10 +73,12 @@ export interface AgentState {
   summary?: string;
   /** Error that should stop or retry the workflow. */
   error?: string;
-  /** Generated outline. */
-  outline?: SlideOutline[];
-  /** Pattern specs produced from the outline. */
-  specs?: SlideSpec[];
+   /** Generated outline. */
+   outline?: SlideOutline[];
+   /** Path to exported outline markdown file. */
+   outlineExportPath?: string;
+   /** Pattern specs produced from the outline. */
+   specs?: SlideSpec[];
   /** Rendered slides (XML fragments). */
   renderedSlides?: RenderedSlide[];
   /** Gate A validation result after assembly. */
